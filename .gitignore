@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local walkthrough files
+dex_risk_extension_walkthrough.md*
