@@ -4,7 +4,7 @@ A browser extension for analyzing and assessing risk on decentralized exchanges 
 
 ## 🔗 Repository
 
-[https://github.com/amanpatel1208/dex-risk-extension.git](https://github.com/amanpatel1208/dex-risk-extension.git)
+[https://github.com/amanpatel1208/DC-RISK.git](https://github.com/amanpatel1208/DC-RISK.git)
 
 ## 🚀 Getting Started
 
@@ -16,8 +16,8 @@ A browser extension for analyzing and assessing risk on decentralized exchanges 
 ### Installation
 
 ```bash
-git clone https://github.com/amanpatel1208/dex-risk-extension.git
-cd dex-risk-extension
+git clone https://github.com/amanpatel1208/DC-RISK.git
+cd DC-RISK
 npm install
 ```
 
