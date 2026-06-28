@@ -1,7 +1,6 @@
 import type {
   SecurityProfile,
   TradingMetrics,
-  RiskCheckConfig,
   RiskLevel,
   ConfidenceLevel,
 } from '../types';
@@ -100,27 +99,24 @@ export function normalizeSignals(sec: SecurityProfile, m: TradingMetrics): Norma
 /**
  * Scores liquidity risk.
  */
-function scoreLiquidity(s: NormalizedSignals, cfg: RiskCheckConfig['liquidity']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreLiquidity(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
 
-  if (cfg.checkLiqMcapRatio) {
-    if (s.liqMcapRatio < 0.005) {
-      raw += 8;
-      reasons.push(`📊 Liq/MCap ${(s.liqMcapRatio * 100).toFixed(2)}% — paper-thin, easy rug`);
-    } else if (s.liqMcapRatio < 0.02) {
-      raw += 4;
-      reasons.push(`📊 Liq/MCap ${(s.liqMcapRatio * 100).toFixed(1)}% — thin liquidity`);
-    }
+  if (s.liqMcapRatio < 0.005) {
+    raw += 8;
+    reasons.push(`📊 Liq/MCap ${(s.liqMcapRatio * 100).toFixed(2)}% — paper-thin, easy rug`);
+  } else if (s.liqMcapRatio < 0.02) {
+    raw += 4;
+    reasons.push(`📊 Liq/MCap ${(s.liqMcapRatio * 100).toFixed(1)}% — thin liquidity`);
   }
 
-  if (cfg.checkLowLiquidity && s.rawLiquidityUSD > 0 && s.rawLiquidityUSD < 500) {
+  if (s.rawLiquidityUSD > 0 && s.rawLiquidityUSD < 500) {
     raw += 4;
     reasons.push(`💧 Extremely low liquidity: $${Math.round(s.rawLiquidityUSD)}`);
   }
 
-  if (cfg.checkLpLocked && s.isLpRelevant && !s.lpLocked && s.mintEnabled) {
+  if (s.isLpRelevant && !s.lpLocked && s.mintEnabled) {
     raw += 5;
     reasons.push('🔓 LP unlocked + mint authority active');
   }
@@ -130,23 +126,22 @@ function scoreLiquidity(s: NormalizedSignals, cfg: RiskCheckConfig['liquidity'])
     reasons.push(`✅ Strong liq/mcap ratio: ${(s.liqMcapRatio * 100).toFixed(0)}%`);
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(2))), reasons };
 }
 
 /**
  * Scores smart contract risk.
  */
-function scoreSmartContract(s: NormalizedSignals, cfg: RiskCheckConfig['smartContract']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreSmartContract(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
 
-  if (cfg.checkMintAuthority && s.mintEnabled) {
+  if (s.mintEnabled) {
     raw += 15;
     reasons.push('🔓 Mint authority active — can inflate supply & dump');
   }
 
-  if (cfg.checkFreezeAuthority && s.freezeEnabled) {
+  if (s.freezeEnabled) {
     raw += 10;
     reasons.push('🧊 Freeze authority active — can freeze wallets');
   }
@@ -160,28 +155,27 @@ function scoreSmartContract(s: NormalizedSignals, cfg: RiskCheckConfig['smartCon
     reasons.push('✅ Immutable metadata');
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(3))), reasons };
 }
 
 /**
  * Scores honeypot risk.
  */
-function scoreHoneypot(s: NormalizedSignals, cfg: RiskCheckConfig['honeypot']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreHoneypot(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
 
-  if (cfg.checkCantSell && s.cantSell) {
+  if (s.cantSell) {
     raw += 20;
     reasons.push(`🪤 Honeypot: buys but 0 sells after ${fmtDuration(s.ageMinutes)}`);
   }
 
-  if (cfg.checkCantSell && s.maybeCantSell) {
+  if (s.maybeCantSell) {
     raw += 3;
     reasons.push('⏳ No sells yet — too early to confirm (watching)');
   }
 
-  if (cfg.checkHiddenTax && s.hasHiddenTax) {
+  if (s.hasHiddenTax) {
     if (s.taxPct > 20) {
       raw += 15;
       reasons.push(`💸 Predatory tax: ${s.taxPct}% — likely exit scam`);
@@ -191,19 +185,19 @@ function scoreHoneypot(s: NormalizedSignals, cfg: RiskCheckConfig['honeypot']): 
     }
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(3))), reasons };
 }
 
 /**
  * Scores holder distribution.
  */
-function scoreHolders(s: NormalizedSignals, cfg: RiskCheckConfig['holderDistribution']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreHolders(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
+  const whaleThreshold = 50;
 
-  if (cfg.checkWhaleConcentration && s.whaleConcentration > cfg.whaleThreshold) {
-    const excess = s.whaleConcentration - cfg.whaleThreshold;
+  if (s.whaleConcentration > whaleThreshold) {
+    const excess = s.whaleConcentration - whaleThreshold;
     if (excess > 30) {
       raw += 8;
       reasons.push(`🐋 Top holders own ${s.whaleConcentration.toFixed(0)}% (incl. LP/burn) — extreme`);
@@ -212,42 +206,39 @@ function scoreHolders(s: NormalizedSignals, cfg: RiskCheckConfig['holderDistribu
       reasons.push(`🐋 Top holders own ${s.whaleConcentration.toFixed(0)}% — concentrated`);
     } else {
       raw += 2;
-      reasons.push(`🐋 Top holders own ${s.whaleConcentration.toFixed(0)}% — above ${cfg.whaleThreshold}% threshold`);
+      reasons.push(`🐋 Top holders own ${s.whaleConcentration.toFixed(0)}% — above ${whaleThreshold}% threshold`);
     }
   }
 
-  if (cfg.checkInsiders && s.insiderNetworks > 0) {
+  if (s.insiderNetworks > 0) {
     raw += 7;
     reasons.push(`🕵️ ${s.insiderNetworks} insider network(s) — linked wallets`);
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(2))), reasons };
 }
 
 /**
  * Scores trading patterns.
  */
-function scoreTradingPatterns(s: NormalizedSignals, cfg: RiskCheckConfig['tradingPatterns']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreTradingPatterns(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
 
-  if (cfg.checkPumpDump) {
-    if (s.priceCrash1h < -90) {
-      raw += 12;
-      reasons.push(`💥 Crashed ${s.priceCrash1h.toFixed(0)}% in 1h — active rug`);
-    } else if (s.priceCrash1h < -70) {
-      raw += 5;
-      reasons.push(`📉 Dropped ${s.priceCrash1h.toFixed(0)}% in 1h`);
-    }
+  if (s.priceCrash1h < -90) {
+    raw += 12;
+    reasons.push(`💥 Crashed ${s.priceCrash1h.toFixed(0)}% in 1h — active rug`);
+  } else if (s.priceCrash1h < -70) {
+    raw += 5;
+    reasons.push(`📉 Dropped ${s.priceCrash1h.toFixed(0)}% in 1h`);
   }
 
-  if (cfg.checkBotActivity && s.isBotPump) {
+  if (s.isBotPump) {
     raw += 5;
     reasons.push(`🤖 ${(s.buyRatio * 100).toFixed(0)}% buys — bot-driven pump`);
   }
 
-  if (cfg.checkCoordinatedDump && s.isCoordinatedDump) {
+  if (s.isCoordinatedDump) {
     raw += 7;
     reasons.push(`📉 ${((1 - s.buyRatio) * 100).toFixed(0)}% sells — coordinated dump`);
   }
@@ -262,18 +253,18 @@ function scoreTradingPatterns(s: NormalizedSignals, cfg: RiskCheckConfig['tradin
     reasons.push('✅ Balanced buy/sell ratio');
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(2))), reasons };
 }
 
 /**
  * Scores token age.
  */
-function scoreTokenAge(s: NormalizedSignals, cfg: RiskCheckConfig['tokenAge']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreTokenAge(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
+  const newTokenMinutes = 60;
 
-  if (cfg.checkVeryNew && s.ageMinutes > 0 && s.ageMinutes < cfg.newTokenMinutes) {
+  if (s.ageMinutes > 0 && s.ageMinutes < newTokenMinutes) {
     raw += 4;
     reasons.push(`⏰ Very new (${fmtDuration(s.ageMinutes)}) — most rugs happen early`);
   }
@@ -283,14 +274,13 @@ function scoreTokenAge(s: NormalizedSignals, cfg: RiskCheckConfig['tokenAge']): 
     reasons.push(`✅ Survived 24h+ (${fmtDuration(s.ageMinutes)})`);
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(1))), reasons };
 }
 
 /**
  * Scores RugCheck flags.
  */
-function scoreRugCheckFlags(s: NormalizedSignals, cfg: RiskCheckConfig['rugcheckFlags']): { score: number; reasons: string[] } {
-  if (!cfg.enabled) return { score: 0, reasons: [] };
+function scoreRugCheckFlags(s: NormalizedSignals): { score: number; reasons: string[] } {
   let raw = 0;
   const reasons: string[] = [];
 
@@ -307,7 +297,7 @@ function scoreRugCheckFlags(s: NormalizedSignals, cfg: RiskCheckConfig['rugcheck
     }
   }
 
-  if (cfg.trustRugCheckScore && s.hasApiData) {
+  if (s.hasApiData) {
     if (s.rugCheckScore <= 5) {
       raw -= 5;
       reasons.push(`✅ RugCheck: ${s.rugCheckScore} (clean)`);
@@ -320,7 +310,7 @@ function scoreRugCheckFlags(s: NormalizedSignals, cfg: RiskCheckConfig['rugcheck
     }
   }
 
-  return { score: Math.max(0, Math.round(raw * wMul(cfg.weight))), reasons };
+  return { score: Math.max(0, Math.round(raw * wMul(2))), reasons };
 }
 
 /**
@@ -382,7 +372,7 @@ export interface ScoredResult {
 /**
  * Main token scoring function.
  */
-export function scoreToken(sec: SecurityProfile, m: TradingMetrics, config: RiskCheckConfig): ScoredResult {
+export function scoreToken(sec: SecurityProfile, m: TradingMetrics): ScoredResult {
   const signals = normalizeSignals(sec, m);
 
   const securityReasons: string[] = [];
@@ -390,13 +380,13 @@ export function scoreToken(sec: SecurityProfile, m: TradingMetrics, config: Risk
   let totalScore = 0;
 
   const cats = [
-    { ...scoreLiquidity(signals, config.liquidity), bucket: 'sec' },
-    { ...scoreSmartContract(signals, config.smartContract), bucket: 'sec' },
-    { ...scoreHoneypot(signals, config.honeypot), bucket: 'sec' },
-    { ...scoreHolders(signals, config.holderDistribution), bucket: 'sec' },
-    { ...scoreRugCheckFlags(signals, config.rugcheckFlags), bucket: 'sec' },
-    { ...scoreTradingPatterns(signals, config.tradingPatterns), bucket: 'trade' },
-    { ...scoreTokenAge(signals, config.tokenAge), bucket: 'trade' },
+    { ...scoreLiquidity(signals), bucket: 'sec' },
+    { ...scoreSmartContract(signals), bucket: 'sec' },
+    { ...scoreHoneypot(signals), bucket: 'sec' },
+    { ...scoreHolders(signals), bucket: 'sec' },
+    { ...scoreRugCheckFlags(signals), bucket: 'sec' },
+    { ...scoreTradingPatterns(signals), bucket: 'trade' },
+    { ...scoreTokenAge(signals), bucket: 'trade' },
   ];
 
   for (const cat of cats) {
@@ -421,16 +411,6 @@ export function scoreToken(sec: SecurityProfile, m: TradingMetrics, config: Risk
     tradingReasons,
   };
 }
-
-export const DEFAULT_RISK_CHECKS: RiskCheckConfig = {
-  liquidity: { enabled: true, checkLpLocked: true, checkLowLiquidity: true, checkLiqMcapRatio: true, weight: 2 },
-  smartContract: { enabled: true, checkMintAuthority: true, checkFreezeAuthority: true, checkTransferFees: true, weight: 3 },
-  honeypot: { enabled: true, checkCantSell: true, checkHiddenTax: true, weight: 3 },
-  holderDistribution: { enabled: true, checkWhaleConcentration: true, checkInsiders: true, whaleThreshold: 50, weight: 2 },
-  tradingPatterns: { enabled: true, checkPumpDump: true, checkBotActivity: true, checkCoordinatedDump: true, weight: 2 },
-  tokenAge: { enabled: true, checkVeryNew: true, newTokenMinutes: 60, weight: 1 },
-  rugcheckFlags: { enabled: true, trustRugCheckScore: true, weight: 2 },
-};
 
 export const NEUTRAL_METRICS: TradingMetrics = {
   marketCapUSD: 250000,

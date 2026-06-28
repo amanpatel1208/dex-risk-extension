@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState } from 'react';
 import type { SecurityProfile, RugCheckReport, RugCheckRisk } from '../types';
-import { scoreToken, DEFAULT_RISK_CHECKS, NEUTRAL_METRICS } from '../utils/scorer';
+import { scoreToken, NEUTRAL_METRICS } from '../utils/scorer';
 import type { ScoredResult } from '../utils/scorer';
 
 const API_BASE = 'https://api.rugcheck.xyz/v1';
@@ -142,7 +143,7 @@ export function useTokenScan() {
 
     try {
       const { profile, report } = await buildSecurityProfile(trimmed);
-      const scored = scoreToken(profile, NEUTRAL_METRICS, DEFAULT_RISK_CHECKS);
+      const scored = scoreToken(profile, NEUTRAL_METRICS);
       scored.address = trimmed;
 
       setSecProfile(profile);
