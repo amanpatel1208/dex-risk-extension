@@ -91,3 +91,12 @@ Once you have the compiled code (either from the **Pre-built Archive** or the **
 * `src/options/`: Options UI where users can customize threshold ranges and settings.
 * `manifest.json`: Configuration for extension permissions and background service worker registration.
 * `.github/workflows/`: Automated GitHub Action to test and package the extension on every push.
+
+---
+
+## 🤝 Contributors
+
+* **Aman Patel** - [GitHub Profile](https://github.com/amanpatel1208)
+* **Snehashis Chatterjee** - [GitHub Profile](https://github.com/TOOBCHAT)
+
+*This project was collaboratively built by both of us.*
